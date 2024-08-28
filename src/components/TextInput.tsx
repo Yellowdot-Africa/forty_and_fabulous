@@ -8,6 +8,7 @@ interface TextInputProps {
   placeholder?: string;
   value?: string; // Add this line
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
+  readOnly? :boolean
 }
 
 const TextInput: React.FC<TextInputProps> = ({
@@ -17,7 +18,8 @@ const TextInput: React.FC<TextInputProps> = ({
   required = false,
   placeholder = '',
   value,
-  onChange
+  onChange,
+  readOnly
 }) => {
   return (
     <div className="mb-4">
@@ -33,6 +35,7 @@ const TextInput: React.FC<TextInputProps> = ({
         placeholder={placeholder}
         value={value}
         onChange={onChange}
+        readOnly={readOnly}
         className="w-full p-2 border border-gray-300 rounded-md"
       />
     </div>

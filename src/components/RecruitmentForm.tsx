@@ -1,9 +1,26 @@
-import React, { useState } from 'react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { useState, useEffect } from 'react';
 import TextInput from './TextInput';
-import { addUser } from '../api/apiService';
+import { addUser, getUserDetails } from '../api/apiService';
+
+const Popup: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 5000); // Close after 5 seconds
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-green-500 text-white p-4 rounded animate-pulse">
+      {message}
+    </div>
+  );
+};
 
 const Form: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupMessage, setPopupMessage] = useState('');
   const [formData, setFormData] = useState({
     fullName: '',
     dateOfBirth: '',
@@ -14,23 +31,50 @@ const Form: React.FC = () => {
     city: '',
     socialMedia: '',
     medicalConditions: '',
-    realityTVExperience:'',
+    medicalConditionsReason: '',
+    fitnessDietRoutine: '',
+    tvExperience: '',
     mediaConsent: '',
     declaration: '',
   });
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const phoneNumber = localStorage.getItem('msisdn');
+    const authToken = localStorage.getItem('authToken');
+
+    if (phoneNumber && authToken) {
+      setFormData((prevData) => ({ ...prevData, phoneNumber }));
+
+      const fetchUserDetails = async () => {
+        try {
+          const userDetails = await getUserDetails(phoneNumber, authToken);
+          setFormData((prevData) => ({ ...prevData, ...userDetails }));
+        } catch (error: any) {
+          console.error('Error fetching user details:', error.message);
+          setError(error.message);
+        }
+      };
+
+      fetchUserDetails();
+    }
+  }, []);
+
   const nextStep = () => {
-    // Validate the current step before moving to the next
     if (validateCurrentStep()) {
+      setError(null);
       setCurrentStep((prev) => Math.min(prev + 1, 4));
+    } else {
+      setError('Please complete all required fields.');
     }
   };
 
-  const previousStep = () => setCurrentStep((prev) => Math.max(prev - 1, 1));
+  const previousStep = () => {
+    setError(null);
+    setCurrentStep((prev) => Math.max(prev - 1, 1));
+  };
 
   const validateCurrentStep = () => {
-    // Validate fields based on the current step
     switch (currentStep) {
       case 1:
         return (
@@ -47,9 +91,13 @@ const Form: React.FC = () => {
           formData.socialMedia
         );
       case 3:
-        return formData.medicalConditions && formData.realityTVExperience;
+        return (
+          formData.medicalConditions &&
+          (formData.medicalConditions === 'No' ||
+            (formData.medicalConditionsReason && formData.fitnessDietRoutine))
+        );
       case 4:
-        return formData.mediaConsent && formData.declaration;
+        return formData.tvExperience && formData.mediaConsent && formData.declaration;
       default:
         return false;
     }
@@ -60,13 +108,29 @@ const Form: React.FC = () => {
     setFormData({ ...formData, [name]: value });
   };
 
+  const handleRadioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (name === 'medicalConditions' && value === 'No') {
+      setFormData({
+        ...formData,
+        medicalConditions: 'No',
+        medicalConditionsReason: 'None',
+        fitnessDietRoutine: 'None',
+      });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
+    setLoading(true);
 
     const authToken = localStorage.getItem('authToken');
     if (!authToken) {
       setError('You must be logged in to submit the form.');
+      setLoading(false);
       return;
     }
 
@@ -74,19 +138,28 @@ const Form: React.FC = () => {
       const data = await addUser(formData, authToken);
 
       if (data.status === 201) {
-        alert('Form submitted successfully!');
+        setPopupMessage(data.msg);
+        setShowPopup(true);
       }
-      console.log(data)
     } catch (error: any) {
       console.error('Error:', error.message);
-      setError(error.message);
+
+      if (error.message === 'Unauthorized') {
+        localStorage.clear();
+        window.location.href = '/login';
+      } else {
+        setError(error.message);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
+
     <div className="flex items-center justify-center w-full">
       <div className="rounded-lg shadow-lg px-4 py-8 w-full bg-white">
-        {error && <div className="text-red-600 mb-4">{error}</div>}
+        {error && <div className="text-red-600 mb-4 text-center">{error}</div>}
         <form onSubmit={handleSubmit}>
           {/** Step 1: Personal Information */}
           {currentStep === 1 && (
@@ -98,11 +171,57 @@ const Form: React.FC = () => {
               <div className="mb-4">
                 <label className="block text-sm font-bold mb-2">Marital Status<span className="text-red-500"> *</span></label>
                 <div className="flex flex-col space-y-2">
-                  <label><input type="radio" name="maritalStatus" value="Single" required onChange={handleInputChange} /> Single</label>
-                  <label><input type="radio" name="maritalStatus" value="Married" onChange={handleInputChange} /> Married</label>
-                  <label><input type="radio" name="maritalStatus" value="Widowed" onChange={handleInputChange} /> Widowed</label>
-                  <label><input type="radio" name="maritalStatus" value="Divorced" onChange={handleInputChange} /> Divorced</label>
-                  <label><input type="radio" name="maritalStatus" value="Separated" onChange={handleInputChange} /> Separated</label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="maritalStatus"
+                      value="Single"
+                      required
+                      checked={formData.maritalStatus === 'Single'}
+                      onChange={handleRadioChange}
+                      className='mr-1'
+                    /> Single
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="maritalStatus"
+                      value="Married"
+                      checked={formData.maritalStatus === 'Married'}
+                      onChange={handleRadioChange}
+                      className='mr-1'
+                    /> Married
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="maritalStatus"
+                      value="Widowed"
+                      checked={formData.maritalStatus === 'Widowed'}
+                      onChange={handleRadioChange}
+                      className='mr-1'
+                    /> Widowed
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="maritalStatus"
+                      value="Divorced"
+                      checked={formData.maritalStatus === 'Divorced'}
+                      onChange={handleRadioChange}
+                      className='mr-1'
+                    /> Divorced
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="maritalStatus"
+                      value="Separated"
+                      checked={formData.maritalStatus === 'Separated'}
+                      onChange={handleRadioChange}
+                      className='mr-1'
+                    /> Separated
+                  </label>
                 </div>
               </div>
               <div className="flex justify-end">
@@ -117,7 +236,15 @@ const Form: React.FC = () => {
           {currentStep === 2 && (
             <div>
               <h3 className="text-2xl font-semibold mb-4">Contact Information</h3>
-              <TextInput label="Phone Number" name="phoneNumber" type="tel" required value={formData.phoneNumber} onChange={handleInputChange} />
+              <TextInput 
+                label="Phone Number" 
+                name="phoneNumber" 
+                type="tel"
+                required
+                value={formData.phoneNumber} 
+                onChange={handleInputChange} 
+                readOnly
+              />
               <TextInput label="Email Address" name="email" type="email" required value={formData.email} onChange={handleInputChange} />
               <TextInput label="City/State" name="city" required value={formData.city} onChange={handleInputChange} />
               <TextInput label="Social Media Handles" name="socialMedia" required value={formData.socialMedia} onChange={handleInputChange} />
@@ -139,11 +266,36 @@ const Form: React.FC = () => {
               <div className="mb-10">
                 <label className="block text-sm font-bold mb-2">Any medical conditions?<span className="text-red-500"> *</span></label>
                 <div className="flex flex-col space-y-2">
-                  <label><input type="radio" name="medicalConditions" value="Yes" required onChange={handleInputChange} /> Yes</label>
-                  <label><input type="radio" name="medicalConditions" value="No" onChange={handleInputChange} /> No</label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="medicalConditions"
+                      value="Yes"
+                      required
+                      checked={formData.medicalConditions === 'Yes'}
+                      onChange={handleRadioChange}
+                      className='mr-1'
+                    /> Yes
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="medicalConditions"
+                      value="No"
+                      checked={formData.medicalConditions === 'No'}
+                      onChange={handleRadioChange}
+                      className='mr-1'
+                    /> No
+                  </label>
                 </div>
               </div>
-              <TextInput label="Previous reality TV experience (if any)" name="realityTVExperience" value={formData.realityTVExperience} onChange={handleInputChange} />
+
+              {formData.medicalConditions === 'Yes' && (
+                <>
+                  <TextInput label="If yes, please elaborate" name="medicalConditionsReason" value={formData.medicalConditionsReason} onChange={handleInputChange} />
+                  <TextInput label="Do you have any fitness or diet routine?" name="fitnessDietRoutine" value={formData.fitnessDietRoutine} onChange={handleInputChange} />
+                </>
+              )}
               <div className="flex justify-between">
                 <button type="button" onClick={previousStep} className="bg-gray-500 text-white px-4 py-2 rounded-md">
                   Back
@@ -158,12 +310,32 @@ const Form: React.FC = () => {
           {/** Step 4: Media Consent and Declaration */}
           {currentStep === 4 && (
             <div>
-              <h3 className="text-xl font-semibold mb-4">Media Consent</h3>
+              <h3 className="text-xl font-semibold mb-4">Reality TV Experience and Media Consent</h3>
+              <TextInput label="Previous reality TV experience (if any)" name="tvExperience" value={formData.tvExperience} onChange={handleInputChange} />
               <div className="mb-10">
                 <label className="block text-sm font-bold mb-2">Do you consent to being filmed and broadcasted?<span className="text-red-500"> *</span></label>
                 <div className="flex flex-col space-y-2">
-                  <label><input type="radio" name="mediaConsent" value="Yes" required onChange={handleInputChange} /> Yes</label>
-                  <label><input type="radio" name="mediaConsent" value="No" onChange={handleInputChange} /> No</label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="mediaConsent"
+                      value="Yes"
+                      required
+                      checked={formData.mediaConsent === 'Yes'}
+                      onChange={handleRadioChange}
+                      className='mr-1'
+                    /> Yes
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="mediaConsent"
+                      value="No"
+                      checked={formData.mediaConsent === 'No'}
+                      onChange={handleRadioChange}
+                      className='mr-1'
+                    /> No
+                  </label>
                 </div>
               </div>
 
@@ -175,12 +347,15 @@ const Form: React.FC = () => {
                   Back
                 </button>
                 <button type="submit" className="bg-red-700 text-white px-4 py-2 rounded-md">
-                  Submit
+                  {loading ? 'Submitting...' : 'Submit'}
                 </button>
               </div>
             </div>
           )}
         </form>
+        {showPopup && (
+          <Popup message={popupMessage} onClose={() => setShowPopup(false)} />
+        )}
       </div>
     </div>
   );
