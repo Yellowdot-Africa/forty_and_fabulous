@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ChangeEvent } from 'react';
 
 interface TextInputProps {
   label: string;
@@ -6,6 +6,8 @@ interface TextInputProps {
   type?: string;
   required?: boolean;
   placeholder?: string;
+  value?: string; // Add this line
+  onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
 }
 
 const TextInput: React.FC<TextInputProps> = ({
@@ -14,6 +16,8 @@ const TextInput: React.FC<TextInputProps> = ({
   type = 'text',
   required = false,
   placeholder = '',
+  value,
+  onChange
 }) => {
   return (
     <div className="mb-4">
@@ -27,6 +31,8 @@ const TextInput: React.FC<TextInputProps> = ({
         type={type}
         required={required}
         placeholder={placeholder}
+        value={value}
+        onChange={onChange}
         className="w-full p-2 border border-gray-300 rounded-md"
       />
     </div>

@@ -1,11 +1,12 @@
-import React, { ReactNode } from 'react';
+import React from 'react';
 
 interface AuthLayoutProps {
-  children: ReactNode;
-  text?: string;
+  text: string;
+  children: React.ReactNode;
 }
 
 const AuthLayout: React.FC<AuthLayoutProps> = ({ children, text }) => {
+
   return (
     <div className="flex gap-4 min-h-screen relative px-4 py-3 bg-[#f4e4dc]">
       <div className="bg-[url(/abstract.jpg)] auth-bg max-sm:hidden w-[45%] text-white rounded-[30px] p-10  flex flex-col justify-center items-center">
