@@ -8,7 +8,7 @@ export const loginUser = async (msisdn: string) => {
         },
         body: JSON.stringify({ msisdn }),
       });
-  
+
       const data = await response.json();
   
       if (response.ok) {
@@ -93,4 +93,27 @@ export const loginUser = async (msisdn: string) => {
     }
   };
 
+  export const updateUserDetails = async (phoneNumber: string, formData: any, token: string) => {
+    try {
+      const response = await fetch(`https://api.40fabulous.com/api/v1/users/${phoneNumber}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+        body: JSON.stringify(formData),
+      });
   
+      const data = await response.json();
+  
+      if (response.ok) {
+        return data;
+      } else if (response.status === 400) {
+        throw new Error(data.msg);
+      } else {
+        throw new Error(data.msg || 'Failed to update user details. Please try again.');
+      }
+    } catch (error: any) {
+      throw new Error(error.message || 'An error occurred. Please try again.');
+    }
+  };

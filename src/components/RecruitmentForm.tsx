@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
 import TextInput from './TextInput';
-import { addUser, getUserDetails } from '../api/apiService';
+import { addUser, getUserDetails, updateUserDetails } from '../api/apiService';
 
 const Popup: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => {
   useEffect(() => {
@@ -128,6 +128,8 @@ const Form: React.FC = () => {
     setLoading(true);
 
     const authToken = localStorage.getItem('authToken');
+    const phoneNumber = formData.phoneNumber;
+
     if (!authToken) {
       setError('You must be logged in to submit the form.');
       setLoading(false);
@@ -135,10 +137,20 @@ const Form: React.FC = () => {
     }
 
     try {
-      const data = await addUser(formData, authToken);
+      // Check if the user already exists
+      const existingUser = await getUserDetails(phoneNumber, authToken);
+      
+      let data;
+      if (existingUser) {
+        // Update the existing user's details
+        data = await updateUserDetails(phoneNumber, formData, authToken);
+      } else {
+        // Create a new user
+        data = await addUser(formData, authToken);
+      }
 
-      if (data.status === 201) {
-        setPopupMessage(data.msg);
+      if (data.status === 201 || data.status === 200) {
+        setPopupMessage(data.msg || 'Form submitted successfully');
         setShowPopup(true);
       }
     } catch (error: any) {
@@ -156,7 +168,6 @@ const Form: React.FC = () => {
   };
 
   return (
-
     <div className="flex items-center justify-center w-full">
       <div className="rounded-lg shadow-lg px-4 py-8 w-full bg-white">
         {error && <div className="text-red-600 mb-4 text-center">{error}</div>}
